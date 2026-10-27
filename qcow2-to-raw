@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""qcow2-to-raw <image.qcow2> <disk.raw>: a qcow2 image (v2/v3, no backing file, zlib compression; Ubuntu's cloud
+images) as a sparse raw disk. mothership-build uses it on the phone (no qemu-img there)."""
+import struct
+import sys
+import zlib
+
+
+def main(src, dst):
+    with open(src, "rb") as f, open(dst, "wb") as out:
+        h = f.read(104)
+        magic, version, backing, _, cluster_bits, size, crypt, l1_size, l1_offset = struct.unpack(">IIQIIQIIQ", h[:48])
+        if magic != 0x514649FB:
+            sys.exit(f"{src}: not a qcow2 image")
+        if backing:
+            sys.exit("qcow2: backing files are not supported")
+        if crypt:
+            sys.exit("qcow2: encrypted images are not supported")
+        if version >= 3:
+            incompatible = struct.unpack(">Q", h[72:80])[0]
+            # dirty (0) and corrupt (1) are fine to read; external data, compression type, extended L2 not
+            if incompatible & ~0b11:
+                sys.exit(f"qcow2: unsupported features {incompatible:#x}")
+        cluster = 1 << cluster_bits
+        out.truncate(size)
+        f.seek(l1_offset)
+        l1 = struct.unpack(f">{l1_size}Q", f.read(l1_size * 8))
+        per_l2 = cluster // 8
+        cshift = 62 - (cluster_bits - 8)
+        zero = bytes(cluster)
+        for i, l1e in enumerate(l1):
+            l2_offset = l1e & 0x00FFFFFFFFFFFE00
+            if not l2_offset:
+                continue
+            f.seek(l2_offset)
+            l2 = struct.unpack(f">{per_l2}Q", f.read(cluster))
+            for j, entry in enumerate(l2):
+                guest = (i * per_l2 + j) * cluster
+                if guest >= size:
+                    break
+                if entry & (1 << 62):
+                    # compressed: host offset, then the count of further 512-byte sectors
+                    off = entry & ((1 << cshift) - 1)
+                    sectors = (entry >> cshift) & ((1 << (cluster_bits - 8)) - 1)
+                    f.seek(off)
+                    packed = f.read((sectors + 1) * 512 - (off & 511))
+                    data = zlib.decompressobj(-15).decompress(packed, cluster)
+                else:
+                    off = entry & 0x00FFFFFFFFFFFE00
+                    # unallocated, or all zeros (v3): the raw file's hole
+                    if not off or entry & 1:
+                        continue
+                    f.seek(off)
+                    data = f.read(cluster)
+                if data != zero[:len(data)]:
+                    out.seek(guest)
+                    out.write(data[:min(cluster, size - guest)])
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        sys.exit("usage: qcow2-to-raw <image.qcow2> <disk.raw>")
+    main(sys.argv[1], sys.argv[2])

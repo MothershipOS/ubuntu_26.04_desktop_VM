@@ -1,0 +1,14 @@
+# vms: sources and docs only. Images, packages and build outputs stay local.
+*.img
+*.qcow2
+*.raw
+*.deb
+*.tar.gz
+*.ko
+*.o
+*.so
+*.bin
+__pycache__/
+*.pyc
+*.log
+target/

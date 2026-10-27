@@ -1,0 +1,4 @@
+{
+  "id": "ubuntu-desktop",
+  "keep": ["hdd.raw", "seed"]
+}

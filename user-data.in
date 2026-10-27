@@ -1,0 +1,60 @@
+#cloud-config
+# mothershipOS Ubuntu desktop VM, first boot (cloud-init NoCloud, served by the launcher on the first start;
+# mship-system create-vm fills in the key and the packages).
+hostname: ubuntu-desktop
+users:
+  - name: ubuntu
+    gecos: Ubuntu
+    groups: [adm, sudo, video, render, input]
+    shell: /bin/bash
+    lock_passwd: false
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys: [@SSH_KEY@]
+chpasswd:
+  expire: false
+  users:
+    - {name: ubuntu, password: ubuntu, type: text}
+ssh_pwauth: false
+package_update: true
+packages: [ubuntu-desktop-minimal, systemd-zram-generator, qemu-guest-agent]
+write_files:
+  # the pointer is drawn into the frame: the VM's screen is shown by mothershipOS's presenter, which has no cursor
+  # plane for it
+  - path: /etc/environment.d/90-mothership.conf
+    content: |
+      MUTTER_DEBUG_DISABLE_HW_CURSORS=1
+  # the VM's power button (`crosvm powerbtn`, mothershipOS's VM stop) shuts it down, whatever GNOME would do
+  - path: /etc/systemd/logind.conf.d/50-mothership.conf
+    content: |
+      [Login]
+      HandlePowerKey=poweroff
+      PowerKeyIgnoreInhibited=yes
+  # GDM signs in by itself: the phone is locked by mothershipOS, not by the VM
+  - path: /etc/gdm3/custom.conf
+    content: |
+      [daemon]
+      AutomaticLoginEnable=true
+      AutomaticLogin=ubuntu
+  # GNOME picks the scale per display (the USB-C monitor, or the phone panel when there is none); on-screen
+  # keyboard for the touchscreen. Blanking and suspend stay GNOME's own: the host follows them (the display's
+  # scanout, the kernel's PSCI suspend)
+  - path: /etc/dconf/profile/user
+    content: |
+      user-db:user
+      system-db:local
+  - path: /etc/dconf/db/local.d/00-mothership
+    content: |
+      [org/gnome/desktop/a11y/applications]
+      screen-keyboard-enabled=true
+  # the release's guest packages (Mesa with freedreno's virtio interface, the VA-API driver): mship-system create-vm
+  # puts them next to the seed
+  @PACKAGE_FILES@
+runcmd:
+  - [dconf, update]
+  @PACKAGE_INSTALL@
+  - [systemctl, set-default, graphical.target]
+  # provisioned: cloud-init is done with this VM (it would otherwise look for a datasource on every boot)
+  - [touch, /etc/cloud/cloud-init.disabled]
+power_state:
+  mode: reboot
+  message: mothershipOS desktop installed, rebooting into it

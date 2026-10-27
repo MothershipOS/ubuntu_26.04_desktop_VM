@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "name": "Ubuntu 26.04 Desktop",
+  "cid": 4,
+  "min_mothership": "2026.1",
+  "platform": {
+    "id": "efi-virt-arm64",
+    "version": "1.0"
+  },
+  "boot": {
+    "kernel": "Image",
+    "disk": "hdd.raw"
+  },
+  "slots": {
+    "display": {
+      "contract": "mship.display",
+      "version": "1.0"
+    },
+    "touch": {
+      "contract": "mship.touch",
+      "version": "1.0"
+    },
+    "gpu": {
+      "contract": "mship.gpu",
+      "version": "1.0",
+      "params": {
+        "context_types": [
+          "drm",
+          "cross-domain"
+        ]
+      }
+    },
+    "battery": {
+      "contract": "mship.battery",
+      "version": "1.0",
+      "required": false
+    },
+    "camera": {
+      "contract": "mship.camera",
+      "version": "1.0",
+      "required": false
+    }
+  },
+  "handover": {
+    "when_shown": [],
+    "while_running": [
+      "display-ext",
+      "usb"
+    ]
+  },
+  "log": "qemu.log",
+  "display_mode": "lease",
+  "output": "DP-1",
+  "vmm": "crosvm",
+  "guest_ssh": "ubuntu@192.168.98.2"
+}

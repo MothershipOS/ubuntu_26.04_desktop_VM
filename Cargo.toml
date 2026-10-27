@@ -1,0 +1,14 @@
+[workspace]
+resolver = "3"
+members = ["xtask"]
+
+[workspace.package]
+version = "26.4.0"	# Ubuntu 26.04 LTS
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/MothershipOS/ubuntu_26.04_desktop_VM"
+
+[workspace.dependencies]
+anyhow = "1"
+libc = "0.2"
+serde_json = "1"

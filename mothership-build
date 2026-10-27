@@ -1,0 +1,79 @@
+#!/bin/sh
+# mothership-build <out dir>: the Ubuntu 26.04 desktop VM's package for mothershipOS, built on the phone.
+# mothershipOS runs it (mship-system vm-install <this repository>) as the session user in a clone of this
+# repository, then installs <out dir> as /var/lib/mothership/vms/ubuntu-desktop and removes the rest.
+#
+# - the official Ubuntu 26.04 arm64 cloud image (checked against Ubuntu's SHA256SUMS) as a sparse raw disk
+#   (qcow2-to-raw), grown to MSHIP_VM_DISK GB (32; cloud-init grows the root partition)
+# - this VM's kernel and guest packages (Mesa with freedreno's virtio interface, the VA-API driver): the assets of
+#   this repository's latest release (cargo xtask release), or MSHIP_ASSETS (a URL or a directory)
+# - a cloud-init NoCloud seed for the first start (the launcher serves it on the VM's tap): user `ubuntu`, the
+#   host's VM key (MSHIP_VM_SSH_KEY, from mothershipOS), the desktop, the guest packages
+# - vm.json and mothership-package.json
+# An update of an installed VM (MSHIP_UPDATE=1) keeps its disk and seed: then only the kernel, vm.json and
+# mothership-package.json are made.
+set -eu
+
+out=${1:?usage: mothership-build <out dir>}
+here=$(cd "$(dirname "$0")" && pwd)
+release=https://cloud-images.ubuntu.com/releases/26.04/release
+image=ubuntu-26.04-server-cloudimg-arm64.img
+assets=${MSHIP_ASSETS:-https://github.com/MothershipOS/ubuntu_26.04_desktop_VM/releases/latest/download}
+seed_url=http://192.168.98.1:8123
+
+# fetch <url or file> <dest>
+fetch() {
+    case $1 in
+        http://*|https://*)
+            echo "downloading $1"
+            if command -v curl >/dev/null 2>&1; then curl -fsSL --retry 3 -o "$2" "$1"; else wget -q -O "$2" "$1"; fi ;;
+        *) cp "$1" "$2" ;;
+    esac
+}
+
+mkdir -p "$out/seed"
+cd "$out"
+
+if [ "${MSHIP_UPDATE:-}" != 1 ]; then
+    # the disk
+    fetch "$release/SHA256SUMS" SHA256SUMS
+    want=$(grep " \*$image\$" SHA256SUMS | cut -d' ' -f1)
+    [ -n "$want" ] || { echo "SHA256SUMS: no $image" >&2; exit 1; }
+    fetch "$release/$image" "$image"
+    echo "$want  $image" | sha256sum -c -
+    python3 "$here/qcow2-to-raw" "$image" hdd.raw
+    truncate -s ">${MSHIP_VM_DISK:-32}G" hdd.raw
+    rm -f "$image" SHA256SUMS
+fi
+
+# our kernel and guest packages
+fetch "$assets/Image" Image
+if [ "${MSHIP_UPDATE:-}" != 1 ]; then
+    fetch "$assets/guest-packages.tar" seed/guest-packages.tar
+    tar -xf seed/guest-packages.tar -C seed
+    rm seed/guest-packages.tar
+    packages=$(cd seed && ls ./*.deb 2>/dev/null | sed 's|^\./||' || true)
+
+    # the seed
+    key=${MSHIP_VM_SSH_KEY:-}
+    awk -v key="\"$key\"" -v url="$seed_url" -v packages="$packages" '
+        BEGIN { n = split(packages, p, "\n") }
+        /@PACKAGE_FILES@/ {
+            for (i = 1; i <= n; i++) if (p[i] != "") {
+                printf "  - path: /var/cache/mothership/%s\n    source:\n      uri: %s/%s\n", p[i], url, p[i]
+            }
+            next
+        }
+        /@PACKAGE_INSTALL@/ {
+            list = ""
+            for (i = 1; i <= n; i++) if (p[i] != "") list = list (list == "" ? "" : ", ") "/var/cache/mothership/" p[i]
+            if (list != "") printf "  - [apt-get, install, -y, %s]\n", list
+            next
+        }
+        { gsub(/@SSH_KEY@/, key); print }
+    ' "$here/user-data.in" > seed/user-data
+    printf 'instance-id: mothership-ubuntu-desktop-%s\nlocal-hostname: ubuntu-desktop\n' "$(date +%s)" > seed/meta-data
+fi
+
+cp "$here/vm.json" "$here/mothership-package.json" .
+if [ -f hdd.raw ]; then echo "built $out ($(du -h --apparent-size hdd.raw | cut -f1) disk; the first start installs the desktop)"; else echo "built $out (an update: the kernel)"; fi
