@@ -6,7 +6,8 @@
 # - the official Ubuntu 26.04 arm64 cloud image (checked against Ubuntu's SHA256SUMS) as a sparse raw disk
 #   (qcow2-to-raw), grown to MSHIP_VM_DISK GB (32; cloud-init grows the root partition)
 # - this VM's kernel and guest packages (Mesa with freedreno's virtio interface, the VA-API driver): the assets of
-#   this repository's latest release (cargo xtask release), or MSHIP_ASSETS (a URL or a directory)
+#   this repository's latest release (cargo xtask release), the assets/ folder next to this script (the store's
+#   package of this VM has them), or MSHIP_ASSETS (a URL or a directory)
 # - a cloud-init NoCloud seed for the first start (the launcher serves it on the VM's tap): user `ubuntu`, the
 #   host's VM key (MSHIP_VM_SSH_KEY, from mothershipOS), the desktop, the guest packages
 # - vm.json and mothership-package.json
@@ -18,7 +19,9 @@ out=${1:?usage: mothership-build <out dir>}
 here=$(cd "$(dirname "$0")" && pwd)
 release=https://cloud-images.ubuntu.com/releases/26.04/release
 image=ubuntu-26.04-server-cloudimg-arm64.img
-assets=${MSHIP_ASSETS:-https://github.com/MothershipOS/ubuntu_26.04_desktop_VM/releases/latest/download}
+assets=https://github.com/MothershipOS/ubuntu_26.04_desktop_VM/releases/latest/download
+[ -f "$here/assets/Image" ] && assets=$here/assets
+assets=${MSHIP_ASSETS:-$assets}
 seed_url=http://192.168.98.1:8123
 
 # fetch <url or file> <dest>

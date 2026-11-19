@@ -1,0 +1,6 @@
+name: Ubuntu 26.04 Desktop
+summary: Ubuntu's desktop with the phone's GPU and hardware video decoding.
+
+Ubuntu 26.04 LTS, built on the phone from Ubuntu's official cloud image, with its own kernel and Mesa for the
+phone's GPU and hardware video decoding. The first start installs the desktop (needs the network, takes a while).
+Updating replaces the kernel and keeps your disk. Source: https://github.com/MothershipOS/ubuntu_26.04_desktop_VM

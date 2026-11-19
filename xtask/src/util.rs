@@ -220,3 +220,14 @@ pub fn kernel_tree(work: &Path, src: &serde_json::Value, patches_dir: &Path) -> 
     Ok(tree)
 }
 
+
+/// store/info.txt for the store, with the package's version (mothership-package.json "version", the one source)
+pub fn store_info(to: &Path) -> Result<()> {
+    let pkg: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(root().join("mothership-package.json"))?)?;
+    let version = pkg["version"].as_str().context("mothership-package.json: no \"version\"")?;
+    let info = std::fs::read_to_string(root().join("store/info.txt"))?;
+    let (head, desc) = info.split_once("\n\n").unwrap_or((info.as_str(), ""));
+    let head: Vec<&str> = head.lines().filter(|l| !l.starts_with("version:")).collect();
+    std::fs::write(to, format!("{}\nversion: {version}\n\n{desc}", head.join("\n")))?;
+    Ok(())
+}

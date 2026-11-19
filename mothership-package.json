@@ -1,4 +1,5 @@
 {
   "id": "ubuntu-desktop",
+  "version": "26.04.1",
   "keep": ["hdd.raw", "seed"]
 }
