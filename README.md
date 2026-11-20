@@ -8,6 +8,14 @@ No mothershipOS program runs in the guest. What mothershipOS adds is in the VM's
 built in, mothershipOS's guest drivers too, no modules, no initrd) and its packages, and the host follows the guest
 from outside: its display (crosvm's window), its decoder sessions, its own suspend (PSCI).
 
+- **Works**: GNOME desktop on the USB-C external display with the GPU (native context: FD650, OpenGL 4.6), hardware
+  video decode (Venus: V4L2 and VA-API), blank and suspend followed by the host, sound on the external display, its
+  own NAT network, USB keyboard and mouse.
+- **Needs work**: snaps render on the CPU (their Mesa lacks freedreno's virtio interface); Firefox comes from
+  Mozilla's APT repository instead.
+- **Not implemented**: UEFI boot; the `internet` slot; Wi-Fi, Bluetooth, GNSS and sensors slots; sound following the
+  `display-ext` item; sound capture.
+
 ## Install (on the phone)
 The VM is built on the phone from this repository:
 
@@ -44,11 +52,10 @@ Ubuntu's Mesa builds freedreno for the msm kernel driver only. Under crosvm the 
 interface too: `cargo xtask guest-mesa` cross-compiles Ubuntu's own Mesa package (minutes) with
 `freedreno-kmds=msm,virtio` and the drivers a guest uses (freedreno, virgl, softpipe; turnip), version `+mship1`.
 This repository's release carries the packages and the VM's first start installs them; for an existing VM,
-`dpkg -i` them by hand (and again after an Ubuntu Mesa update). Verified: `eglinfo` renderer FD650,
-OpenGL 4.6.
+`dpkg -i` them by hand (and again after an Ubuntu Mesa update). `eglinfo`: renderer FD650, OpenGL 4.6.
 
-Snaps bring their own Mesa (`gpu-2404`, without the virtio interface) and render on the CPU: Ubuntu's Firefox
-snap ran pages at 4K in software (YouTube struggled, the main process at ~170% CPU). Firefox is installed from
+Snaps bring their own Mesa (`gpu-2404`, without the virtio interface) and render on the CPU (Ubuntu's Firefox
+snap: pages at 4K in software, YouTube struggles, the main process at ~170% CPU). Firefox is installed from
 Mozilla's APT repository instead (`packages.mozilla.org`, key fingerprint
 `35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3`, pinned with priority 1000, `--allow-downgrades` once over Ubuntu's
 snap wrapper package), which uses the system Mesa; the dock favourite is `firefox.desktop`.
@@ -82,7 +89,7 @@ The VM sleeps like stock Ubuntu: GNOME blanks after 5 min idle and suspends afte
   `0006-aarch64-power-button`; logind powers off), then `crosvm stop` if it is still running after 60 s.
 
 ## Run
-- Its screen is the USB-C external display: hardware item `display-ext` (Settings › Hardware). The launcher
+- Its screen is the USB-C external display: hardware item `display-ext` (a VM's page › Hardware). The launcher
   starts the VM's own presenter (`mship-presenter`, `MSHIP_VM_OUTPUT=DP-1`; `MSHIP_VM_MODE` picks a mode, else the
   monitor's preferred one) and crosvm draws into it. The guest gets the display when a monitor is connected, at its
   mode, and loses it when unplugged (virtio-gpu display hotplug); while the VM holds `display-ext`, sway leases DP-1 to that presenter.
@@ -104,8 +111,8 @@ The VM sleeps like stock Ubuntu: GNOME blanks after 5 min idle and suspends afte
   cloud-init run fails with "dpkg was interrupted"; finish it over ssh with `sudo dpkg --configure -a` and
   `sudo apt-get install ubuntu-desktop-minimal`.
 
-## Not yet (platform gaps: [efi-virt-arm64](https://github.com/MothershipOS/mothershipOS/blob/main/docs/platforms/efi-virt-arm64-1.md))
+## Not implemented (platform gaps: [efi-virt-arm64](https://github.com/MothershipOS/mothershipOS/blob/main/docs/platforms/efi-virt-arm64-1.md))
 - The platform `efi-virt-arm64` also defines UEFI boot; the launcher only boots the VM's kernel directly.
-- The network is its own NAT, not the `internet` slot; no Wi-Fi or Bluetooth handles in this VM yet.
+- The network is its own NAT, not the `internet` slot; no Wi-Fi, Bluetooth, GNSS or sensors slots in this VM.
 - Sound follows the VM, not the `display-ext` item: the guest's sound card stays while the monitor is unplugged
   or lent elsewhere (it plays into nothing), and there is no capture (DP has no input).
