@@ -51,6 +51,5 @@
   "log": "qemu.log",
   "display_mode": "lease",
   "output": "DP-1",
-  "vmm": "crosvm",
-  "guest_ssh": "ubuntu@192.168.98.2"
+  "vmm": "crosvm"
 }

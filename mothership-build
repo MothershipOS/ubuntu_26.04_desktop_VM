@@ -22,7 +22,8 @@ image=ubuntu-26.04-server-cloudimg-arm64.img
 assets=https://github.com/MothershipOS/ubuntu_26.04_desktop_VM/releases/latest/download
 [ -f "$here/assets/Image" ] && assets=$here/assets
 assets=${MSHIP_ASSETS:-$assets}
-seed_url=http://192.168.98.1:8123
+# the seed server's address: the launcher fills it in (the VM's network comes from its manifest)
+seed_url=@SEED_URL@
 
 # fetch <url or file> <dest>
 fetch() {
@@ -76,6 +77,8 @@ if [ "${MSHIP_UPDATE:-}" != 1 ]; then
         { gsub(/@SSH_KEY@/, key); print }
     ' "$here/user-data.in" > seed/user-data
     printf 'instance-id: mothership-ubuntu-desktop-%s\nlocal-hostname: ubuntu-desktop\n' "$(date +%s)" > seed/meta-data
+    # the network card by name, not by MAC: its MAC is the host's choice (mothershipOS's VM network cards)
+    printf 'version: 2\nethernets:\n  vm:\n    match:\n      name: "en*"\n    dhcp4: true\n' > seed/network-config
 fi
 
 cp "$here/vm.json" "$here/mothership-package.json" .

@@ -9,9 +9,10 @@ built in, mothershipOS's guest drivers too, no modules, no initrd) and its packa
 from outside: its display (crosvm's window), its decoder sessions, its own suspend (PSCI).
 
 - **Works**: GNOME desktop on the USB-C external display with the GPU (native context: FD650, OpenGL 4.6), hardware
-  video decode (Venus: V4L2 and VA-API), blank and suspend followed by the host, sound on the external display, its
-  own NAT network, USB keyboard and mouse.
-- **Needs work**: snaps render on the CPU (their Mesa lacks freedreno's virtio interface); Firefox comes from
+  video decode (Venus: V4L2 and VA-API), blank and suspend followed by the host, sound on the external display, USB
+  keyboard and mouse.
+- **Needs work**: network through the shared internet handle (its card is online only while the VM holds it):
+  untested since networking moved to the handle. Snaps render on the CPU (their Mesa lacks freedreno's virtio interface); Firefox comes from
   Mozilla's APT repository instead.
 - **Not implemented**: UEFI boot; the `internet` slot; Wi-Fi, Bluetooth, GNSS and sensors slots; sound following the
   `display-ext` item; sound capture.
@@ -82,9 +83,10 @@ The VM sleeps like stock Ubuntu: GNOME blanks after 5 min idle and suspends afte
 - crosvm has no UEFI here: the launcher boots the VM's own kernel (`Image`, vm.json `boot.kernel`, from this
   repository's release) straight onto the disk's first partition. Ubuntu's own kernel packages are not used (and not installed: an
   Ubuntu kernel update would only rebuild initramfs images).
-- Network: tap `ubtap0` (host 192.168.98.1, guest 192.168.98.2 by a fixed DHCP lease on its MAC
-  52:54:00:12:34:56, which also keeps cloud-init's netplan match), NATed out of the phone's uplink all the time
-  (`mship-vm-net`, chain `MSHIP_VMNAT`), independent of the lendable internet slot and of other VMs.
+- Network: one card (tap `vm4n0`), online while the VM holds the shared internet (mship-net: host 10.200.4.1,
+  guest 10.200.4.2 by DHCP, NAT out of the phone's uplink). The guest's netplan matches the card by name (`en*`,
+  the seed's `network-config`). The first boot's seed is served on the host's address (`@SEED_URL@` in the seed),
+  so a new VM needs the shared internet for its first boot.
 - Stop: `mship vm stop` presses the guest's power button (`crosvm powerbtn`, our crosvm patch
   `0006-aarch64-power-button`; logind powers off), then `crosvm stop` if it is still running after 60 s.
 
@@ -102,7 +104,7 @@ The VM sleeps like stock Ubuntu: GNOME blanks after 5 min idle and suspends afte
   kernel). crosvm needs `max-queue-size=64` for it. `MSHIP_VM_SOUND=0` starts the VM without sound: crosvm stops the
   VM when the sound backend dies.
 - Shell: Start / Stop (Show only says it's on the external display).
-- ssh: `ssh -i /root/.ssh/id_ed25519_vm ubuntu@192.168.98.2`; console `serial.log` (hvc0).
+- ssh: `ssh -i /root/.ssh/id_ed25519_vm ubuntu@10.200.4.2`; console `serial.log` (hvc0).
 - CPUs and memory: the VM pool (every CPU, the pool's RAM through a balloon with free page reporting; mothershipd
   moves memory to the VMs that are awake). Caps: vm.json `resources.cpus` / `resources.memory_mb`, or
   `MSHIP_VM_MEM`. The host swap file (installed by `mship-system setup`) keeps a first-start install from running
